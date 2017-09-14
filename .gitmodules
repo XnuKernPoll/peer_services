@@ -1,0 +1,6 @@
+[submodule "store_lib"]
+	path = store_lib
+	url = git@github.com:XnuKernPoll/store_lib
+[submodule "topologies"]
+	path = topologies
+	url = git@github.com:XnuKernPoll/topologies
