@@ -1,0 +1,12 @@
+package peer_services.peer_exchange
+import topologies._
+
+import com.twitter.finagle, com.twitter.{util}
+import finagle.mux._, finagle.{Service}, util.Future
+
+
+object Server {
+  def handler(peer_state: PeerState) = Service.mk[Request, Response] { req =>
+    req.dest
+  }
+}

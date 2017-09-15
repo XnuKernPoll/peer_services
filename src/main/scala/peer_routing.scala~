@@ -1,0 +1,18 @@
+package peer_services
+import com.google.common.cache._
+import com.twitter.finagle
+
+
+object ServiceCache {
+  
+  def loader[Req, Rep](cli: finagle.Client[Req, Rep])  = new CacheLoader[String, Service[Req, Rep] ] {
+    def load(key: String) = cli.newService(key) 
+  }
+
+  def evictionListener = new RemovalListener[String, Service[Req, Rep] ] {
+    def onRemoval(e: RemovalNotification[String, Service[Req, Rep]] ) = e.getValue().close()  
+  }
+
+
+  
+}
