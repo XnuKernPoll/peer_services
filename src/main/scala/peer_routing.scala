@@ -3,7 +3,10 @@ package peer_services
 import topologies._ 
 import com.google.common.cache._
 import com.twitter.finagle, com.twitter.util 
-import util.Var, finagle.Service
+import util.Var, finagle.{Service, SimpleFilter}
+import finagle.Http
+import finagle.http.{Request, Response, Cookie}
+
 
 object ServiceCache {
   
@@ -22,19 +25,67 @@ object ServiceCache {
 
 }
 
+object RoutingFilters {
+  import com.google.common.hash._ 
+
+  type HttpService = Service[Request, Response]
+  type HttpFilter = SimpleFilter[Request, Response]
+
+  def addKey(getKey: Request => Array[Byte]) = new SimpleFilter[Request, Response] {
+    def apply(req: Request, next: HttpService) = {
+      val k = ( HashCode.fromBytes(getKey(req) )  ).toString()
+      next(req)
+    }
+  }
+
+
+  class Dynamo(state: RouterState, cli: Http.Client) extends HttpFilter {
+    val conn_cache = ServiceCache.build(cli, 50)
+    val local = state.neighborhood.my_node
+
+    def apply(req: Request, next: HttpService) = {
+      val k = req.headerMap.get("Routing-Key").map (keyString => HashCode.fromString(keyString).asBytes() )
+
+      k match  {
+        case Some(kh) =>
+
+          val shard = PreferenceList.route(state.table, kh)
+          if ( state.table.contains(shard) ) {
+            val conns = shard.filterNot(x => x == local) map { k => conn_cache.get(k.key) }
+            conns.foreach {host => host(req)}
+            next(req)
+          } else {
+            val hosts = shard.map(x => x.key).mkString(",")
+            ( conn_cache.get(hosts) )(req)
+
+          }
+
+        case None => next(req)
+      }
+
+    }
+
+  }
+
+
+
+}
+
+
+
+
 
 class RouterState(state: PeerState, f: Int = 3) {
 
   var table = PreferenceList.partition(neighborhood.neighbors, Node.rcompare, f)
-  val localShards = Var( claim ) 
+  var localShards = claim
 
-  private def sampleShards = Var.sample(localShards)
 
   def rebalance: Unit = {
     val p = PreferenceList.partition(neighborhood.neighbors, Node.rcompare, f)
     synchronized { table = p }
     val c =  claim 
-    if ( sampleShards != c ) { localShards() = c}
+    if ( localShards != c ) synchronized { localShards = c}
   }
 
 
