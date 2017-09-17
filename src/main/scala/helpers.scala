@@ -6,7 +6,10 @@ import util.Var, finagle.{Service, SimpleFilter}
 import finagle.Http
 import finagle.http.{Request, Response, Cookie}
 
-
+/** This is a pretty useful, albeit simple module, due to the fact that clustering in finagle is made in a way that, 
+  you connect to an external service discovery source, via resolvers and then there is a load balancer in front of the cluster, without much thought of the case that you are implementing your own member management system, with finagle, or are implementing replication directly with finagle. 
+ 
+*/
 object ServiceCache {
   type Cache[Req, Rep] = LoadingCache[String, Service[Req, Rep] ]
   
@@ -27,13 +30,13 @@ object ServiceCache {
 
 
 
-
+/** An object for thread safe, shared mutable state, for the Neighborhood type in topologies   */
 class RouterState(state: PeerState, f: Int = 3) {
 
   var table = PreferenceList.partition(neighborhood.neighbors, Node.rcompare, f)
   var localShards = claim
 
-
+  /** It **/
   def rebalance: Unit = {
     val p = PreferenceList.partition(neighborhood.neighbors, Node.rcompare, f)
     synchronized { table = p }

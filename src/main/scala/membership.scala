@@ -10,7 +10,7 @@ import com.twitter.util.Future
 import com.twitter.finagle.mux.{Request, Response}
 import com.twitter.finagle.{Path, Service}
 
-
+/** The Server side of a simple member management service. */
 object PeerManager {
   trait Verb
 
@@ -53,7 +53,7 @@ object PeerManager {
   }
 }
 
-
+/** client api of a simple member management service */
 object MembershipClient {
 
   def join(node: Node, conn: Service[Request, Response]): Future[Unit] = {
@@ -78,5 +78,12 @@ object MembershipClient {
       Node.listCodec.decode(buf).toOption.map(x => x.value).get 
     }
   }
+
+  def bootstrap(node: Node, conn: Service[Request, Response]) = for {
+    () <- join(node, conn)
+    peers <- list(conn)
+    ring <- Future { Neighborhood(node, Chord.sortPeers(peers) ) }
+  } yield ring
+
 
 }

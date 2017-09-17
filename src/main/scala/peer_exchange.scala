@@ -9,6 +9,8 @@ import scala.util.Random
 import scodec.bits._
 import store_lib.storage.util.BV
 
+
+/** The server merges the clients and it's own Neighborhood, then updates it's state, and returns the new merged Neighborhood to the client */
 class Server(p: PeerState) extends Service[Request, Response] {
   def apply(req: Request) = req.destination match {
 
@@ -34,7 +36,9 @@ class Server(p: PeerState) extends Service[Request, Response] {
 }
 
 
-
+/** 
+a module that allows you to merge PeerState / Neighborhood state, with a remote peer, and an antientropy service to maintain routing table state. 
+*/
 object Client {
 
   def exchange(conn: Service[Request, Response], neighborhood: Neighborhood): Future[Neighborhood] = {

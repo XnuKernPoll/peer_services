@@ -8,7 +8,7 @@ import util.{Future}
 import scodec.bits.BitVector
 import util.Base64UrlSafeStringEncoder
 
-
+/** A shared, thread safe mutable PNCounter, will probably rename this and implement version vectors as well */
 class ReplicaState(pnc: PNCounter) {
   var clock = pnc
   def incr = {
@@ -31,6 +31,8 @@ case object READ extends OP
 case object WRITE extends OP
 case object DELETE extends OP
 
+
+/** A module for replication */
 object TXFilters {
   
   import RoutingFilters.{HttpService, HttpFilter}
