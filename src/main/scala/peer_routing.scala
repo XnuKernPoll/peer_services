@@ -1,5 +1,4 @@
 package peer_services
-
 import topologies._ 
 import com.google.common.cache._
 import com.twitter.finagle, com.twitter.util 
@@ -9,6 +8,7 @@ import finagle.http.{Request, Response, Cookie}
 
 
 object ServiceCache {
+  type Cache[Req, Rep] = LoadingCache[String, Service[Req, Rep] ]
   
   def loader[Req, Rep](cli: finagle.Client[Req, Rep])  = new CacheLoader[String, Service[Req, Rep] ] {
     def load(key: String) = cli.newService(key) 
@@ -24,53 +24,6 @@ object ServiceCache {
 
 
 }
-
-object RoutingFilters {
-  import com.google.common.hash._ 
-
-  type HttpService = Service[Request, Response]
-  type HttpFilter = SimpleFilter[Request, Response]
-
-  def addKey(getKey: Request => Array[Byte]) = new SimpleFilter[Request, Response] {
-    def apply(req: Request, next: HttpService) = {
-      val k = ( HashCode.fromBytes(getKey(req) )  ).toString()
-      next(req)
-    }
-  }
-
-
-  class Dynamo(state: RouterState, cli: Http.Client) extends HttpFilter {
-    val conn_cache = ServiceCache.build(cli, 50)
-    val local = state.neighborhood.my_node
-
-    def apply(req: Request, next: HttpService) = {
-      val k = req.headerMap.get("Routing-Key").map (keyString => HashCode.fromString(keyString).asBytes() )
-
-      k match  {
-        case Some(kh) =>
-
-          val shard = PreferenceList.route(state.table, kh)
-          if ( state.table.contains(shard) ) {
-            val conns = shard.filterNot(x => x == local) map { k => conn_cache.get(k.key) }
-            conns.foreach {host => host(req)}
-            next(req)
-          } else {
-            val hosts = shard.map(x => x.key).mkString(",")
-            ( conn_cache.get(hosts) )(req)
-
-          }
-
-        case None => next(req)
-      }
-
-    }
-
-  }
-
-
-
-}
-
 
 
 

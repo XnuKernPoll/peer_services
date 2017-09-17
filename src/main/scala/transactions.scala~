@@ -1,0 +1,81 @@
+package peer_services.tx
+import com.twitter.util, com.twitter.finagle
+
+
+object ReplicationSession {
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+object RoutingFilters {
+  import com.google.common.hash._ 
+
+  type HttpService = Service[Request, Response]
+  type HttpFilter = SimpleFilter[Request, Response]
+
+  def addKey(getKey: Request => Array[Byte]) = new SimpleFilter[Request, Response] {
+    def apply(req: Request, next: HttpService) = {
+      val k = ( HashCode.fromBytes(getKey(req) )  ).toString()
+      next(req)
+    }
+  }
+
+
+
+
+  class Read(state: RouterState, conn_cache: ServiceCache.Cache[Request, Response]) extends HttpFilter {
+    def apply(req: Request, next: HttpService) = {
+      val k = req.headerMap.get("Routing-Key").map (keyString => HashCode.fromString(keyString).asBytes() )
+      k match {
+        case Some(kh) =>
+          val shard = PreferenceList.route(state.table, kh)
+          if ( state.localShards.contains(shard)  ) {
+            next(req)
+          } else { ( conn_cache.get(shard.map(x => x.key).mkString(",")  ) )(req)  }
+
+        case None => next(req)
+      }
+    }
+  }
+
+
+  class Write(state: RouterState, conn_cache: ServiceCache.Cache[Request, Response]) extends HttpFilter {
+    val local = state.neighborhood.my_node
+
+    def apply(req: Request, next: HttpService) = {
+      val k = req.headerMap.get("Routing-Key").map (keyString => HashCode.fromString(keyString).asBytes() )
+
+      k match  {
+        case Some(kh) =>
+
+          val shard = PreferenceList.route(state.table, kh)
+          if ( state.localShards.contains(shard) ) {
+            val conns = shard.filterNot(x => x == local) map { k => conn_cache.get(k.key) }
+            conns.foreach {host => host(req)}
+            next(req)
+          } else {
+            val hosts = shard.map(x => x.key).mkString(",")
+            ( conn_cache.get(hosts) )(req)
+
+          }
+
+        case None => next(req)
+      }
+
+    }
+
+  }
+
+}
+
