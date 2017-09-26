@@ -1,9 +1,0 @@
-package peer_services
-
-import org.scalatest._
-import peer_services.membership._
-import topologies._
-
-class MembershipSuite extends FunSuite {
-  
-}
