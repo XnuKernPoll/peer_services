@@ -1,10 +1,11 @@
-package peer_services.cluster
+package peer_services.membership
 
 import com.twitter.concurrent._
 import com.twitter.io.Buf , scodec.bits.BitVector
 
 import topologies._
 import Buf.ByteArray.Shared
+import store_lib.storage.util.BV
 
 import com.twitter.util.Future
 import com.twitter.finagle.mux.{Request, Response}
@@ -31,23 +32,28 @@ object PeerManager {
         ps.leave(n)
         Buf.Utf8( s"${n.key} left" )
 
-      case Event(LIST, None) => Buf.Utf8( ps.peers.neighbors.mkString(",") )
+      case Event(LIST, _) =>
+        println(ps.peers.neighbors)
+        val e = Node.listCodec.encode(ps.peers.neighbors).toOption.map(x => BV.toBuf(x) )
+        e.get
 
-      case _ => Buf.Utf8("unable to handle request")  
+      case _ =>
+        println("bitch")
+        Buf.Utf8("unable to handle request")
     }
     }
   }
 
   def extract(req: Request) = {
     val buf = BitVector( Shared.extract( req.body )  )
-    Future { Node.codec.decode(buf).toOption.map{x => x.value} } 
+    Future { Node.codec.decode(buf).toOption.map{x => x.value } }
   }
 
   def server(peer_state: PeerState) = Service.mk[Request, Response] { req =>
     val event = req.destination match {
       case Path.Utf8("membership", "join") => extract(req).map(node => Event(JOIN, node) )
       case Path.Utf8("membership", "leave") => extract(req).map(node => Event(LEAVE, node) )
-      case Path.Utf8("membership", "list") => Future {Event(LIST, None) }
+      case Path.Utf8("membership", "list") => extract(req).map(n => Event(LIST, n) ) 
     }
     handler(peer_state, event).map( buf => Response(buf) )
   }
@@ -73,16 +79,20 @@ object MembershipClient {
     val path = Path.Utf8("membership", "list")
     val req = Request(path, Buf.Empty)
 
-    conn(req).map {rep =>
+
+    conn(req).map { rep =>
       val buf =  BitVector( Shared.extract( rep.body )  )
-      Node.listCodec.decode(buf).toOption.map(x => x.value).get 
+      val n = Node.listCodec.decode(buf).toOption.map(x => x.value)
+      n.get
     }
-  }
+
+
+   }
 
   def bootstrap(node: Node, conn: Service[Request, Response]) = for {
-    () <- join(node, conn)
+    () <- join(node,conn)
     peers <- list(conn)
-    ring <- Future { Neighborhood(node, Chord.sortPeers(peers) ) }
+    ring <- Future { Neighborhood(node, Node.sortPeers(peers) ) }
   } yield ring
 
 

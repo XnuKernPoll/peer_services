@@ -2,6 +2,7 @@ package peer_services.dynamo
 import com.twitter.util, com.twitter.finagle
 
 import topologies._
+import chord._ 
 import peer_services._
 import finagle.http.{Request, Response}, finagle.{Http,SimpleFilter, Service, Failure}
 import util.{Future}

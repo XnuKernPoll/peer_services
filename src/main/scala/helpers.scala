@@ -1,5 +1,7 @@
 package peer_services
-import topologies._ 
+
+import topologies._
+import chord._
 import com.google.common.cache._
 import com.twitter.finagle, com.twitter.util 
 import util.Var, finagle.{Service, SimpleFilter}
